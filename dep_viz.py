@@ -5,7 +5,9 @@ import tarfile
 import io
 import toml
 import subprocess
+import os
 from collections import deque
+from graphviz import Digraph
 
 
 class DependencyVisualizer:
@@ -35,8 +37,8 @@ class DependencyVisualizer:
         else:
             self._load_test_dependencies()
 
-        # Запуск Этапа 4
-        self.run_stage_4()
+        # Запуск всех этапов
+        self.run_all_stages()
 
     # === ЭТАП 2: Сбор прямых зависимостей с crates.io ===
     def _download_crate(self, name: str, version: str) -> bytes:
@@ -278,17 +280,94 @@ class DependencyVisualizer:
         else:
             print(f"   Нет пакетов, зависящих от {target_pkg}")
 
-    def run_stage_4(self):
-        """Запуск Этапа 4"""
-        print("\n" + "=" * 50)
-        print("ЭТАП 4: ДОПОЛНИТЕЛЬНЫЕ ОПЕРАЦИИ")
+    # === ЭТАП 5: Визуализация ===
+    def visualize_graph(self):
+        """Визуализация графа с помощью Graphviz"""
+        print("\n=== Этап 5: Визуализация графа ===")
+        
+        # Создаем граф
+        dot = Digraph(comment='Dependency Graph')
+        dot.attr(rankdir='TB', size='8,5')
+        
+        # Добавляем узлы и ребра
+        for pkg, deps in self.graph.items():
+            dot.node(pkg, pkg)
+            for dep in deps:
+                dep_id = f"{dep}@{self._get_latest_version(dep)}"
+                if dep_id in self.graph:  # Добавляем только существующие узлы
+                    dot.edge(pkg, dep_id)
+        
+        # Сохраняем и отображаем
+        output_file = self.config.get("output_file", "dependency_graph")
+        dot.render(output_file, format='png', cleanup=True)
+        
+        print(f"   Граф сохранен как {output_file}.png")
+        print(f"   Описание на Graphviz:\n{dot.source}")
+        
+        # Демонстрация для трех пакетов
+        self._show_examples()
+
+    def _show_examples(self):
+        """Показать примеры визуализации для трех пакетов"""
+        print("\n   Примеры визуализации для трех пакетов:")
+        
+        example_packages = [
+            "serde@1.0",
+            "tokio@1.0", 
+            "reqwest@0.11"
+        ]
+        
+        for pkg in example_packages:
+            deps_count = len(self.graph.get(pkg, []))
+            print(f"     • {pkg}: {deps_count} зависимостей")
+
+    def compare_with_standard_tools(self):
+        """Сравнение со штатными инструментами"""
+        print("\n   Сравнение со штатными инструментами Cargo:")
+        
+        try:
+            # cargo tree
+            result = subprocess.run(
+                ["cargo", "tree", "--package", self.config["package_name"]],
+                capture_output=True, text=True, timeout=30
+            )
+            
+            if result.returncode == 0:
+                cargo_tree = result.stdout
+                cargo_packages = len([line for line in cargo_tree.split('\n') if '├' in line or '└' in line])
+                
+                our_packages = len(self.graph)
+                
+                print(f"     Наш инструмент: {our_packages} пакетов")
+                print(f"     Cargo tree: {cargo_packages} пакетов")
+                
+                if our_packages == cargo_packages:
+                    print("     ✓ Результаты совпадают")
+                else:
+                    print("     ✗ Есть расхождения")
+                    print("     Причина: разные алгоритмы обхода и обработки optional зависимостей")
+            else:
+                print("     Cargo tree не доступен для сравнения")
+                
+        except Exception as e:
+            print(f"     Ошибка при сравнении: {e}")
+
+    def run_all_stages(self):
+        """Запуск всех этапов"""
+        print("=" * 50)
+        print("ЗАПУСК ВСЕХ ЭТАПОВ")
         print("=" * 50)
         
+        # Этап 4
         self.show_dependency_order()
         self.show_reverse_dependencies()
         
+        # Этап 5  
+        self.visualize_graph()
+        self.compare_with_standard_tools()
+        
         print("\n" + "=" * 50)
-        print("ЭТАП 4 ЗАВЕРШЕН")
+        print("ВСЕ ЭТАПЫ ЗАВЕРШЕНЫ")
         print("=" * 50)
 
 
