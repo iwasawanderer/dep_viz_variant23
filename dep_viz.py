@@ -282,28 +282,63 @@ class DependencyVisualizer:
 
     # === ЭТАП 5: Визуализация ===
     def visualize_graph(self):
-        """Визуализация графа с помощью Graphviz"""
+        """Визуализация графа с улучшенным качеством"""
         print("\n=== Этап 5: Визуализация графа ===")
         
-        # Создаем граф
-        dot = Digraph(comment='Dependency Graph')
-        dot.attr(rankdir='TB', size='8,5')
-        
-        # Добавляем узлы и ребра
-        for pkg, deps in self.graph.items():
-            dot.node(pkg, pkg)
-            for dep in deps:
-                dep_id = f"{dep}@{self._get_latest_version(dep)}"
-                if dep_id in self.graph:  # Добавляем только существующие узлы
-                    dot.edge(pkg, dep_id)
-        
-        # Сохраняем и отображаем
-        output_file = self.config.get("output_file", "dependency_graph")
-        dot.render(output_file, format='png', cleanup=True)
-        
-        print(f"   Граф сохранен как {output_file}.png")
-        print(f"   Описание на Graphviz:\n{dot.source}")
-        
+        try:
+            from graphviz import Digraph
+            
+            # Создаем граф с улучшенными настройками
+            dot = Digraph(comment='Dependency Graph')
+            dot.attr(
+                rankdir='TB',
+                size='12,8',
+                dpi='300',
+                concentrate='false',
+                splines='ortho'
+            )
+            
+            # Стили для узлов
+            dot.attr('node', 
+                    shape='box',
+                    style='rounded,filled',
+                    fillcolor='lightblue',
+                    fontname='Arial',
+                    fontsize='10')
+            
+            # Стили для ребер
+            dot.attr('edge',
+                    color='darkgray',
+                    arrowhead='vee',
+                    arrowsize='0.8')
+            
+            # Добавляем узлы и ребра
+            for pkg, deps in self.graph.items():
+                # Выделяем корневой пакет другим цветом
+                if pkg == f"{self.config['package_name']}@{self.config['version']}":
+                    dot.node(pkg, pkg, fillcolor='lightcoral')
+                else:
+                    dot.node(pkg, pkg)
+                
+                for dep in deps:
+                    dep_id = f"{dep}@{self._get_latest_version(dep)}"
+                    if dep_id in self.graph:
+                        dot.edge(pkg, dep_id)
+            
+            # Сохраняем в высоком качестве
+            output_file = self.config.get("output_file", "dependency_graph")
+            dot.render(output_file, 
+                    format='png', 
+                    cleanup=True,
+                    engine='dot')
+            
+            print(f"   Граф сохранен как {output_file}.png (высокое качество)")
+            print(f"   Размер графа: {len(self.graph)} узлов, {sum(len(deps) for deps in self.graph.values())} связей")
+            
+        except ImportError:
+            print("   Graphviz не установлен. Генерируем DOT файл...")
+            self._generate_dot_file()
+    
         # Демонстрация для трех пакетов
         self._show_examples()
 
@@ -324,33 +359,49 @@ class DependencyVisualizer:
     def compare_with_standard_tools(self):
         """Сравнение со штатными инструментами"""
         print("\n   Сравнение со штатными инструментами Cargo:")
-        
+    
+        # Проверяем установлен ли Cargo
         try:
-            # cargo tree
+            result = subprocess.run(["cargo", "--version"], 
+                                capture_output=True, text=True, timeout=10)
+            if result.returncode != 0:
+                print("     ❌ Cargo не установлен")
+                return
+        except:
+            print("     ❌ Cargo не найден")
+            return
+        
+        # Пробуем cargo tree
+        try:
             result = subprocess.run(
-                ["cargo", "tree", "--package", self.config["package_name"]],
+                ["cargo", "tree", "--package", self.config["package_name"], "--depth", "2"],
                 capture_output=True, text=True, timeout=30
             )
             
             if result.returncode == 0:
-                cargo_tree = result.stdout
-                cargo_packages = len([line for line in cargo_tree.split('\n') if '├' in line or '└' in line])
+                cargo_output = result.stdout
+                cargo_lines = [line for line in cargo_output.split('\n') 
+                            if line.strip() and not line.startswith('error')]
                 
                 our_packages = len(self.graph)
+                cargo_packages = len([line for line in cargo_lines 
+                                    if '├' in line or '└' in line or line.strip()])
                 
                 print(f"     Наш инструмент: {our_packages} пакетов")
                 print(f"     Cargo tree: {cargo_packages} пакетов")
                 
                 if our_packages == cargo_packages:
-                    print("     ✓ Результаты совпадают")
+                    print("     ✅ Результаты совпадают")
                 else:
-                    print("     ✗ Есть расхождения")
-                    print("     Причина: разные алгоритмы обхода и обработки optional зависимостей")
+                    print(f"     ⚠️  Есть расхождения")
+                    
             else:
-                print("     Cargo tree не доступен для сравнения")
-                
+                print("     ❌ Cargo tree недоступен")
+                    
+        except subprocess.TimeoutExpired:
+            print("     ❌ Cargo tree превысил время ожидания")
         except Exception as e:
-            print(f"     Ошибка при сравнении: {e}")
+            print(f"     ❌ Ошибка: {e}")
 
     def run_all_stages(self):
         """Запуск всех этапов"""
