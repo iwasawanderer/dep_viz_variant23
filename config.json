@@ -1,6 +1,9 @@
 {
   "package_name": "serde",
-  "version": "1.0.203",
+  "version": "1.0.203", 
   "target_dir": "test_cargo",
-  "test_mode": true
+  "test_mode": false,
+  "max_depth": 3,
+  "filter_substring": "test",
+  "test_repo_path": "test_deps.json"
 }
