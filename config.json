@@ -1,0 +1,6 @@
+{
+  "package_name": "serde",
+  "version": "1.0.203",
+  "target_dir": "test_cargo",
+  "test_mode": true
+}
