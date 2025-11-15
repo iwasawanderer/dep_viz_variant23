@@ -78,7 +78,7 @@ dep_viz_variant23/
 
 
 ### Визуализация графа
-![Граф зависимостей](dependency_graph_v2.png)
+![Граф зависимостей](dependency_graph_high_quality.png)
 
 *Граф зависимостей пакета serde@1.0.203*
 
